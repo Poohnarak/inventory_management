@@ -1,35 +1,25 @@
+// Per-shop database schema: inventory, products, BOM, stock, purchases, sales
 generator client {
   provider = "prisma-client-js"
+  output   = "../../node_modules/@prisma/client/shop"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String
-  role      String   @default("user")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("users")
+  url      = env("SHOP_DATABASE_URL")
 }
 
 model Ingredient {
-  id           Int      @id @default(autoincrement())
-  name         String
-  category     String?
-  unit         String
-  costPerUnit  Float    @map("cost_per_unit")
-  currentStock Float    @default(0) @map("current_stock")
-  lowStockThreshold Float @default(10) @map("low_stock_threshold")
-  supplier     String?
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id                Int      @id @default(autoincrement())
+  name              String
+  category          String?
+  unit              String
+  costPerUnit       Float    @map("cost_per_unit")
+  currentStock      Float    @default(0) @map("current_stock")
+  lowStockThreshold Float    @default(10) @map("low_stock_threshold")
+  supplier          String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   bomItems       BomItem[]
   stockMovements StockMovement[]
@@ -79,12 +69,12 @@ model StockMovement {
 }
 
 model Purchase {
-  id         Int      @id @default(autoincrement())
-  date       DateTime @default(now())
-  totalAmount Float   @map("total_amount")
-  imageUrl   String?  @map("image_url")
-  note       String?
-  createdAt  DateTime @default(now()) @map("created_at")
+  id          Int      @id @default(autoincrement())
+  date        DateTime @default(now())
+  totalAmount Float    @map("total_amount")
+  imageUrl    String?  @map("image_url")
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
 
   items PurchaseItem[]
 
@@ -106,11 +96,11 @@ model PurchaseItem {
 }
 
 model SalesImport {
-  id         Int      @id @default(autoincrement())
-  fileName   String   @map("file_name")
-  source     String?  // Grab, LINE MAN, Manual
-  totalRows  Int      @map("total_rows")
-  createdAt  DateTime @default(now()) @map("created_at")
+  id        Int      @id @default(autoincrement())
+  fileName  String   @map("file_name")
+  source    String?  // Grab, LINE MAN, Manual
+  totalRows Int      @map("total_rows")
+  createdAt DateTime @default(now()) @map("created_at")
 
   records SalesRecord[]
 
@@ -118,15 +108,15 @@ model SalesImport {
 }
 
 model SalesRecord {
-  id             Int      @id @default(autoincrement())
-  salesImportId  Int      @map("sales_import_id")
-  productId      Int      @map("product_id")
-  productName    String   @map("product_name")
-  quantity       Int
-  date           DateTime
-  revenue        Float    @default(0)
-  costOfGoods    Float    @default(0) @map("cost_of_goods")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id            Int      @id @default(autoincrement())
+  salesImportId Int      @map("sales_import_id")
+  productId     Int      @map("product_id")
+  productName   String   @map("product_name")
+  quantity      Int
+  date          DateTime
+  revenue       Float    @default(0)
+  costOfGoods   Float    @default(0) @map("cost_of_goods")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   salesImport SalesImport @relation(fields: [salesImportId], references: [id], onDelete: Cascade)
   product     Product     @relation(fields: [productId], references: [id])

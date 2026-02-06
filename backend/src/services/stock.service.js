@@ -1,6 +1,8 @@
-const prisma = require('../config/db');
+/**
+ * All functions receive `prisma` (the shop-specific PrismaClient) as the first argument.
+ */
 
-async function getMovements({ type, ingredientId, startDate, endDate, search, page = 1, limit = 50 }) {
+async function getMovements(prisma, { type, ingredientId, startDate, endDate, search, page = 1, limit = 50 }) {
   const where = {};
 
   if (type && type !== 'all') {
@@ -34,9 +36,8 @@ async function getMovements({ type, ingredientId, startDate, endDate, search, pa
   return { movements, total };
 }
 
-async function adjustStock(ingredientId, quantityChange, type, note = null, referenceId = null) {
+async function adjustStock(prisma, ingredientId, quantityChange, type, note = null, referenceId = null) {
   return prisma.$transaction(async (tx) => {
-    // Create movement record
     const movement = await tx.stockMovement.create({
       data: {
         ingredientId,
@@ -47,7 +48,6 @@ async function adjustStock(ingredientId, quantityChange, type, note = null, refe
       },
     });
 
-    // Update ingredient current stock
     await tx.ingredient.update({
       where: { id: ingredientId },
       data: {
@@ -59,11 +59,11 @@ async function adjustStock(ingredientId, quantityChange, type, note = null, refe
   });
 }
 
-async function createManualAdjustment({ ingredientId, quantityChange, note }) {
-  return adjustStock(ingredientId, quantityChange, 'Adjustment', note);
+async function createManualAdjustment(prisma, { ingredientId, quantityChange, note }) {
+  return adjustStock(prisma, ingredientId, quantityChange, 'Adjustment', note);
 }
 
-async function getStats() {
+async function getStats(prisma) {
   const [purchases, sales, adjustments] = await Promise.all([
     prisma.stockMovement.count({ where: { type: 'Purchase' } }),
     prisma.stockMovement.count({ where: { type: 'Sale' } }),

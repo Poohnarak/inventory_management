@@ -3,7 +3,7 @@ const { success } = require('../utils/response');
 
 async function getDashboard(req, res, next) {
   try {
-    const stats = await reportService.getDashboard();
+    const stats = await reportService.getDashboard(req.shopPrisma);
     return success(res, stats);
   } catch (error) {
     next(error);
@@ -13,7 +13,7 @@ async function getDashboard(req, res, next) {
 async function getNetProfit(req, res, next) {
   try {
     const { startDate, endDate, groupBy } = req.query;
-    const report = await reportService.getNetProfit({ startDate, endDate, groupBy });
+    const report = await reportService.getNetProfit(req.shopPrisma, { startDate, endDate, groupBy });
     return success(res, report);
   } catch (error) {
     next(error);
@@ -22,7 +22,7 @@ async function getNetProfit(req, res, next) {
 
 async function getLowStockAlerts(req, res, next) {
   try {
-    const alerts = await reportService.getLowStockAlerts();
+    const alerts = await reportService.getLowStockAlerts(req.shopPrisma);
     return success(res, alerts);
   } catch (error) {
     next(error);

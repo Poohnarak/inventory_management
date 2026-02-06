@@ -4,7 +4,7 @@ const { success, created, paginated } = require('../utils/response');
 async function getImports(req, res, next) {
   try {
     const { page = 1, limit = 20 } = req.query;
-    const result = await salesService.getImports({
+    const result = await salesService.getImports(req.shopPrisma, {
       page: parseInt(page, 10),
       limit: parseInt(limit, 10),
     });
@@ -28,7 +28,7 @@ async function parseCSV(req, res, next) {
 
 async function importSales(req, res, next) {
   try {
-    const result = await salesService.importSales(req.body);
+    const result = await salesService.importSales(req.shopPrisma, req.body);
     return created(res, result);
   } catch (error) {
     next(error);

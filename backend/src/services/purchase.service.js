@@ -1,7 +1,8 @@
-const prisma = require('../config/db');
-const stockService = require('./stock.service');
+/**
+ * All functions receive `prisma` (the shop-specific PrismaClient) as the first argument.
+ */
 
-async function getAll({ page = 1, limit = 20 }) {
+async function getAll(prisma, { page = 1, limit = 20 }) {
   const [purchases, total] = await Promise.all([
     prisma.purchase.findMany({
       include: {
@@ -21,7 +22,7 @@ async function getAll({ page = 1, limit = 20 }) {
   return { purchases, total };
 }
 
-async function getById(id) {
+async function getById(prisma, id) {
   const purchase = await prisma.purchase.findUnique({
     where: { id },
     include: {
@@ -41,11 +42,10 @@ async function getById(id) {
   return purchase;
 }
 
-async function create({ date, items, imageUrl, note }) {
+async function create(prisma, { date, items, imageUrl, note }) {
   const totalAmount = items.reduce((sum, item) => sum + item.price, 0);
 
   return prisma.$transaction(async (tx) => {
-    // Create purchase with items
     const purchase = await tx.purchase.create({
       data: {
         date: date ? new Date(date) : new Date(),
@@ -92,8 +92,6 @@ async function create({ date, items, imageUrl, note }) {
 }
 
 async function uploadReceipt(file) {
-  // OCR-ready: returns the image URL for now
-  // In the future, OCR logic would extract items from the image
   return {
     imageUrl: `/uploads/${file.filename}`,
     message: 'Receipt uploaded. OCR processing is not yet implemented. Please enter items manually.',

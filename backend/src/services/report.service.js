@@ -1,6 +1,8 @@
-const prisma = require('../config/db');
+/**
+ * All functions receive `prisma` (the shop-specific PrismaClient) as the first argument.
+ */
 
-async function getDashboard() {
+async function getDashboard(prisma) {
   const [totalProducts, totalIngredients, ingredients, todaySalesRecords] = await Promise.all([
     prisma.product.count(),
     prisma.ingredient.count(),
@@ -32,7 +34,7 @@ async function getDashboard() {
   };
 }
 
-async function getNetProfit({ startDate, endDate, groupBy = 'day' }) {
+async function getNetProfit(prisma, { startDate, endDate, groupBy = 'day' }) {
   const where = {};
   if (startDate || endDate) {
     where.date = {};
@@ -45,14 +47,13 @@ async function getNetProfit({ startDate, endDate, groupBy = 'day' }) {
     orderBy: { date: 'asc' },
   });
 
-  // Group by day or month
   const grouped = {};
   for (const record of salesRecords) {
     let key;
     if (groupBy === 'month') {
-      key = record.date.toISOString().slice(0, 7); // YYYY-MM
+      key = record.date.toISOString().slice(0, 7);
     } else {
-      key = record.date.toISOString().split('T')[0]; // YYYY-MM-DD
+      key = record.date.toISOString().split('T')[0];
     }
 
     if (!grouped[key]) {
@@ -62,7 +63,6 @@ async function getNetProfit({ startDate, endDate, groupBy = 'day' }) {
     grouped[key].costOfGoods += record.costOfGoods;
   }
 
-  // Calculate net profit
   const report = Object.values(grouped).map((item) => ({
     ...item,
     revenue: Math.round(item.revenue * 100) / 100,
@@ -89,7 +89,7 @@ async function getNetProfit({ startDate, endDate, groupBy = 'day' }) {
   };
 }
 
-async function getLowStockAlerts() {
+async function getLowStockAlerts(prisma) {
   return prisma.$queryRaw`
     SELECT id, name, unit, current_stock as "currentStock", 
            low_stock_threshold as "lowStockThreshold",

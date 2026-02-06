@@ -1,6 +1,8 @@
-const prisma = require('../config/db');
+/**
+ * All functions receive `prisma` (the shop-specific PrismaClient) as the first argument.
+ */
 
-async function getAll({ search, unit, page = 1, limit = 50 }) {
+async function getAll(prisma, { search, unit, page = 1, limit = 50 }) {
   const where = {};
 
   if (search) {
@@ -23,7 +25,7 @@ async function getAll({ search, unit, page = 1, limit = 50 }) {
   return { ingredients, total };
 }
 
-async function getById(id) {
+async function getById(prisma, id) {
   const ingredient = await prisma.ingredient.findUnique({ where: { id } });
   if (!ingredient) {
     const error = new Error('Ingredient not found');
@@ -33,31 +35,21 @@ async function getById(id) {
   return ingredient;
 }
 
-async function create(data) {
+async function create(prisma, data) {
   return prisma.ingredient.create({ data });
 }
 
-async function update(id, data) {
-  await getById(id);
+async function update(prisma, id, data) {
+  await getById(prisma, id);
   return prisma.ingredient.update({ where: { id }, data });
 }
 
-async function remove(id) {
-  await getById(id);
+async function remove(prisma, id) {
+  await getById(prisma, id);
   return prisma.ingredient.delete({ where: { id } });
 }
 
-async function getLowStock() {
-  return prisma.ingredient.findMany({
-    where: {
-      currentStock: { lte: prisma.ingredient.fields?.lowStockThreshold },
-    },
-    orderBy: { currentStock: 'asc' },
-  });
-}
-
-async function getLowStockRaw() {
-  // Use raw query since Prisma doesn't easily support column-to-column comparison
+async function getLowStockRaw(prisma) {
   return prisma.$queryRaw`
     SELECT * FROM ingredients
     WHERE current_stock <= low_stock_threshold

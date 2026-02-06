@@ -4,7 +4,7 @@ const { success, created, paginated } = require('../utils/response');
 async function getAll(req, res, next) {
   try {
     const { page = 1, limit = 20 } = req.query;
-    const result = await purchaseService.getAll({
+    const result = await purchaseService.getAll(req.shopPrisma, {
       page: parseInt(page, 10),
       limit: parseInt(limit, 10),
     });
@@ -16,7 +16,7 @@ async function getAll(req, res, next) {
 
 async function getById(req, res, next) {
   try {
-    const purchase = await purchaseService.getById(parseInt(req.params.id, 10));
+    const purchase = await purchaseService.getById(req.shopPrisma, parseInt(req.params.id, 10));
     return success(res, purchase);
   } catch (error) {
     next(error);
@@ -25,7 +25,7 @@ async function getById(req, res, next) {
 
 async function create(req, res, next) {
   try {
-    const purchase = await purchaseService.create(req.body);
+    const purchase = await purchaseService.create(req.shopPrisma, req.body);
     return created(res, purchase);
   } catch (error) {
     next(error);

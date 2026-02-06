@@ -1,7 +1,9 @@
-const prisma = require('../config/db');
+/**
+ * All functions receive `prisma` (the shop-specific PrismaClient) as the first argument.
+ */
 const { parse } = require('csv-parse/sync');
 
-async function getImports({ page = 1, limit = 20 }) {
+async function getImports(prisma, { page = 1, limit = 20 }) {
   const [imports, total] = await Promise.all([
     prisma.salesImport.findMany({
       include: { _count: { select: { records: true } } },
@@ -31,10 +33,8 @@ async function parseCSV(fileBuffer) {
   }));
 }
 
-async function importSales({ fileName, source, mappings }) {
-  // mappings: Array of { productName, quantity, date, productId }
+async function importSales(prisma, { fileName, source, mappings }) {
   return prisma.$transaction(async (tx) => {
-    // Create the import record
     const salesImport = await tx.salesImport.create({
       data: {
         fileName,
@@ -43,9 +43,7 @@ async function importSales({ fileName, source, mappings }) {
       },
     });
 
-    // Process each mapped sale
     for (const mapping of mappings) {
-      // Get the product and its BOM
       const product = await tx.product.findUnique({
         where: { id: mapping.productId },
         include: {
@@ -59,13 +57,11 @@ async function importSales({ fileName, source, mappings }) {
 
       const revenue = product.sellingPrice * mapping.quantity;
 
-      // Calculate cost of goods
       let costOfGoods = 0;
       for (const bomItem of product.bomItems) {
         costOfGoods += bomItem.ingredient.costPerUnit * bomItem.quantity * mapping.quantity;
       }
 
-      // Create the sales record
       await tx.salesRecord.create({
         data: {
           salesImportId: salesImport.id,

@@ -1,11 +1,11 @@
 const app = require('./app');
 const config = require('./config/env');
-const prisma = require('./config/db');
+const { mainPrisma, disconnectAll } = require('./config/db');
 
 async function main() {
   try {
-    await prisma.$connect();
-    console.log('Database connected successfully');
+    await mainPrisma.$connect();
+    console.log('Main database connected successfully');
 
     app.listen(config.port, () => {
       console.log(`Server running on http://localhost:${config.port}`);
@@ -19,12 +19,12 @@ async function main() {
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  await prisma.$disconnect();
+  await disconnectAll();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  await prisma.$disconnect();
+  await disconnectAll();
   process.exit(0);
 });
 

@@ -4,7 +4,7 @@ const { success, created, paginated } = require('../utils/response');
 async function getAll(req, res, next) {
   try {
     const { search, page = 1, limit = 50 } = req.query;
-    const result = await productService.getAll({
+    const result = await productService.getAll(req.shopPrisma, {
       search,
       page: parseInt(page, 10),
       limit: parseInt(limit, 10),
@@ -17,7 +17,7 @@ async function getAll(req, res, next) {
 
 async function getById(req, res, next) {
   try {
-    const product = await productService.getById(parseInt(req.params.id, 10));
+    const product = await productService.getById(req.shopPrisma, parseInt(req.params.id, 10));
     return success(res, product);
   } catch (error) {
     next(error);
@@ -26,7 +26,7 @@ async function getById(req, res, next) {
 
 async function create(req, res, next) {
   try {
-    const product = await productService.create(req.body);
+    const product = await productService.create(req.shopPrisma, req.body);
     return created(res, product);
   } catch (error) {
     next(error);
@@ -35,7 +35,7 @@ async function create(req, res, next) {
 
 async function update(req, res, next) {
   try {
-    const product = await productService.update(parseInt(req.params.id, 10), req.body);
+    const product = await productService.update(req.shopPrisma, parseInt(req.params.id, 10), req.body);
     return success(res, product);
   } catch (error) {
     next(error);
@@ -44,7 +44,7 @@ async function update(req, res, next) {
 
 async function remove(req, res, next) {
   try {
-    await productService.remove(parseInt(req.params.id, 10));
+    await productService.remove(req.shopPrisma, parseInt(req.params.id, 10));
     return success(res, { message: 'Product deleted successfully' });
   } catch (error) {
     next(error);

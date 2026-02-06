@@ -3,6 +3,18 @@ require('dotenv').config();
 module.exports = {
   port: parseInt(process.env.PORT, 10) || 4000,
   nodeEnv: process.env.NODE_ENV || 'development',
+
+  // Main database (shops + users)
+  mainDatabaseUrl:
+    process.env.MAIN_DATABASE_URL ||
+    'postgresql://postgres:postgres@localhost:5432/inventory_main?schema=public',
+
+  // Base URL used to build per-shop connection strings.
+  // The database name is appended at runtime: <base>/<db_name>?schema=public
+  shopDatabaseBaseUrl:
+    process.env.SHOP_DATABASE_BASE_URL ||
+    'postgresql://postgres:postgres@localhost:5432',
+
   jwt: {
     secret: process.env.JWT_SECRET || 'default-secret-change-me',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',

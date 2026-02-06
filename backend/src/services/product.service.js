@@ -1,6 +1,8 @@
-const prisma = require('../config/db');
+/**
+ * All functions receive `prisma` (the shop-specific PrismaClient) as the first argument.
+ */
 
-async function getAll({ search, page = 1, limit = 50 }) {
+async function getAll(prisma, { search, page = 1, limit = 50 }) {
   const where = {};
   if (search) {
     where.name = { contains: search, mode: 'insensitive' };
@@ -28,7 +30,7 @@ async function getAll({ search, page = 1, limit = 50 }) {
   return { products, total };
 }
 
-async function getById(id) {
+async function getById(prisma, id) {
   const product = await prisma.product.findUnique({
     where: { id },
     include: {
@@ -50,7 +52,7 @@ async function getById(id) {
   return product;
 }
 
-async function create({ name, sellingPrice, bom = [] }) {
+async function create(prisma, { name, sellingPrice, bom = [] }) {
   return prisma.product.create({
     data: {
       name,
@@ -74,17 +76,15 @@ async function create({ name, sellingPrice, bom = [] }) {
   });
 }
 
-async function update(id, { name, sellingPrice, bom }) {
-  await getById(id);
+async function update(prisma, id, { name, sellingPrice, bom }) {
+  await getById(prisma, id);
 
   return prisma.$transaction(async (tx) => {
-    // Update product fields
     await tx.product.update({
       where: { id },
       data: { name, sellingPrice },
     });
 
-    // Replace BOM items if provided
     if (bom !== undefined) {
       await tx.bomItem.deleteMany({ where: { productId: id } });
       if (bom.length > 0) {
@@ -113,8 +113,8 @@ async function update(id, { name, sellingPrice, bom }) {
   });
 }
 
-async function remove(id) {
-  await getById(id);
+async function remove(prisma, id) {
+  await getById(prisma, id);
   return prisma.product.delete({ where: { id } });
 }
 

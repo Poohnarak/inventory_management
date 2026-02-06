@@ -1,26 +1,77 @@
-const { PrismaClient } = require('@prisma/client');
+/**
+ * Multi-tenant seed script.
+ *
+ * 1. Seeds the MAIN database with a demo shop + admin/staff users.
+ * 2. Seeds the SHOP database (shop_demo) with ingredients, products, BOM, and stock movements.
+ *
+ * Prerequisites:
+ *   - PostgreSQL is running with both `inventory_main` and `shop_demo` databases created.
+ *   - Prisma migrations have been applied to both databases.
+ *   - Run `npm run prisma:generate` first to generate both clients.
+ */
+
+const { PrismaClient: MainPrismaClient } = require('@prisma/client/main');
+const { PrismaClient: ShopPrismaClient } = require('@prisma/client/shop');
 const bcrypt = require('bcryptjs');
 
-const prisma = new PrismaClient();
+const mainPrisma = new MainPrismaClient({
+  datasourceUrl:
+    process.env.MAIN_DATABASE_URL ||
+    'postgresql://postgres:postgres@localhost:5432/inventory_main?schema=public',
+});
+
+const shopPrisma = new ShopPrismaClient({
+  datasourceUrl:
+    process.env.SHOP_DATABASE_URL ||
+    'postgresql://postgres:postgres@localhost:5432/shop_demo?schema=public',
+});
 
 async function main() {
-  console.log('Seeding database...');
+  console.log('Seeding multi-tenant database...\n');
 
-  // Create default admin user
-  const hashedPassword = await bcrypt.hash('admin123', 12);
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@inventory.local' },
+  // ─── 1. Main database: shops + users ────────────────────────────────
+  console.log('--- Main database ---');
+
+  const shop = await mainPrisma.shop.upsert({
+    where: { shopCode: 'DEMO' },
     update: {},
     create: {
-      email: 'admin@inventory.local',
-      password: hashedPassword,
-      name: 'Admin',
-      role: 'admin',
+      shopCode: 'DEMO',
+      shopName: 'Demo Bakery',
+      dbName: 'shop_demo',
     },
   });
-  console.log('Created admin user:', admin.email);
+  console.log(`Shop: ${shop.shopName} (code: ${shop.shopCode}, db: ${shop.dbName})`);
 
-  // Seed ingredients
+  const adminHash = await bcrypt.hash('admin123', 12);
+  const admin = await mainPrisma.user.upsert({
+    where: { username_shopId: { username: 'admin', shopId: shop.id } },
+    update: {},
+    create: {
+      username: 'admin',
+      passwordHash: adminHash,
+      role: 'ADMIN',
+      shopId: shop.id,
+    },
+  });
+  console.log(`User: ${admin.username} (role: ${admin.role})`);
+
+  const staffHash = await bcrypt.hash('staff123', 12);
+  const staff = await mainPrisma.user.upsert({
+    where: { username_shopId: { username: 'staff', shopId: shop.id } },
+    update: {},
+    create: {
+      username: 'staff',
+      passwordHash: staffHash,
+      role: 'STAFF',
+      shopId: shop.id,
+    },
+  });
+  console.log(`User: ${staff.username} (role: ${staff.role})`);
+
+  // ─── 2. Shop database: inventory data ───────────────────────────────
+  console.log('\n--- Shop database (shop_demo) ---');
+
   const ingredientsData = [
     { name: 'Flour', category: 'Dry Goods', unit: 'kg', costPerUnit: 2.5, currentStock: 50, lowStockThreshold: 10, supplier: 'Bangkok Flour Co.' },
     { name: 'Sugar', category: 'Dry Goods', unit: 'kg', costPerUnit: 3.0, currentStock: 30, lowStockThreshold: 10, supplier: 'Sweet Supply' },
@@ -35,9 +86,9 @@ async function main() {
   ];
 
   const ingredients = [];
-  for (const data of ingredientsData) {
-    const ing = await prisma.ingredient.upsert({
-      where: { id: ingredientsData.indexOf(data) + 1 },
+  for (const [index, data] of ingredientsData.entries()) {
+    const ing = await shopPrisma.ingredient.upsert({
+      where: { id: index + 1 },
       update: data,
       create: data,
     });
@@ -45,65 +96,64 @@ async function main() {
   }
   console.log(`Seeded ${ingredients.length} ingredients`);
 
-  // Seed products with BOM
   const productsData = [
     {
       name: 'Chocolate Cake',
       sellingPrice: 25.0,
       bom: [
-        { ingredientIndex: 0, quantity: 0.5 },   // Flour
-        { ingredientIndex: 1, quantity: 0.3 },   // Sugar
-        { ingredientIndex: 2, quantity: 0.25 },  // Butter
-        { ingredientIndex: 3, quantity: 4 },     // Eggs
-        { ingredientIndex: 7, quantity: 50 },    // Cocoa Powder
+        { ingredientIndex: 0, quantity: 0.5 },
+        { ingredientIndex: 1, quantity: 0.3 },
+        { ingredientIndex: 2, quantity: 0.25 },
+        { ingredientIndex: 3, quantity: 4 },
+        { ingredientIndex: 7, quantity: 50 },
       ],
     },
     {
       name: 'Vanilla Cupcakes (12pcs)',
       sellingPrice: 18.0,
       bom: [
-        { ingredientIndex: 0, quantity: 0.3 },   // Flour
-        { ingredientIndex: 1, quantity: 0.2 },   // Sugar
-        { ingredientIndex: 2, quantity: 0.15 },  // Butter
-        { ingredientIndex: 3, quantity: 3 },     // Eggs
-        { ingredientIndex: 5, quantity: 10 },    // Vanilla Extract
+        { ingredientIndex: 0, quantity: 0.3 },
+        { ingredientIndex: 1, quantity: 0.2 },
+        { ingredientIndex: 2, quantity: 0.15 },
+        { ingredientIndex: 3, quantity: 3 },
+        { ingredientIndex: 5, quantity: 10 },
       ],
     },
     {
       name: 'Butter Cookies (20pcs)',
       sellingPrice: 12.0,
       bom: [
-        { ingredientIndex: 0, quantity: 0.25 },  // Flour
-        { ingredientIndex: 1, quantity: 0.15 },  // Sugar
-        { ingredientIndex: 2, quantity: 0.2 },   // Butter
-        { ingredientIndex: 3, quantity: 2 },     // Eggs
+        { ingredientIndex: 0, quantity: 0.25 },
+        { ingredientIndex: 1, quantity: 0.15 },
+        { ingredientIndex: 2, quantity: 0.2 },
+        { ingredientIndex: 3, quantity: 2 },
       ],
     },
     {
       name: 'Croissant',
       sellingPrice: 4.5,
       bom: [
-        { ingredientIndex: 0, quantity: 0.1 },   // Flour
-        { ingredientIndex: 2, quantity: 0.08 },  // Butter
-        { ingredientIndex: 4, quantity: 0.05 },  // Milk
-        { ingredientIndex: 3, quantity: 1 },     // Eggs
+        { ingredientIndex: 0, quantity: 0.1 },
+        { ingredientIndex: 2, quantity: 0.08 },
+        { ingredientIndex: 4, quantity: 0.05 },
+        { ingredientIndex: 3, quantity: 1 },
       ],
     },
     {
       name: 'Cream Puffs (6pcs)',
       sellingPrice: 15.0,
       bom: [
-        { ingredientIndex: 0, quantity: 0.15 },  // Flour
-        { ingredientIndex: 2, quantity: 0.1 },   // Butter
-        { ingredientIndex: 3, quantity: 3 },     // Eggs
-        { ingredientIndex: 9, quantity: 0.2 },   // Cream
-        { ingredientIndex: 5, quantity: 5 },     // Vanilla Extract
+        { ingredientIndex: 0, quantity: 0.15 },
+        { ingredientIndex: 2, quantity: 0.1 },
+        { ingredientIndex: 3, quantity: 3 },
+        { ingredientIndex: 9, quantity: 0.2 },
+        { ingredientIndex: 5, quantity: 5 },
       ],
     },
   ];
 
   for (const pData of productsData) {
-    const product = await prisma.product.create({
+    const product = await shopPrisma.product.create({
       data: {
         name: pData.name,
         sellingPrice: pData.sellingPrice,
@@ -118,7 +168,6 @@ async function main() {
     console.log(`Created product: ${product.name}`);
   }
 
-  // Seed some stock movements
   const movements = [
     { ingredientId: ingredients[0].id, type: 'Purchase', quantityChange: 25, createdAt: new Date('2026-02-05') },
     { ingredientId: ingredients[2].id, type: 'Purchase', quantityChange: 10, createdAt: new Date('2026-02-04') },
@@ -130,11 +179,15 @@ async function main() {
   ];
 
   for (const m of movements) {
-    await prisma.stockMovement.create({ data: m });
+    await shopPrisma.stockMovement.create({ data: m });
   }
   console.log(`Seeded ${movements.length} stock movements`);
 
-  console.log('Seeding complete!');
+  console.log('\nSeeding complete!');
+  console.log('\nYou can now log in with:');
+  console.log('  Shop code: DEMO');
+  console.log('  Admin:  admin / admin123');
+  console.log('  Staff:  staff / staff123');
 }
 
 main()
@@ -143,5 +196,6 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect();
+    await mainPrisma.$disconnect();
+    await shopPrisma.$disconnect();
   });

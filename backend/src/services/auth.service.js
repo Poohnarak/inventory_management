@@ -1,52 +1,134 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const prisma = require('../config/db');
+const { mainPrisma } = require('../config/db');
 const config = require('../config/env');
 
-async function register({ email, password, name }) {
-  const existing = await prisma.user.findUnique({ where: { email } });
+/**
+ * Login with shop_code + username + password.
+ * Returns a JWT that embeds shop_code, db_name, role, and user id.
+ */
+async function login({ shopCode, username, password }) {
+  // 1. Look up the shop
+  const shop = await mainPrisma.shop.findUnique({
+    where: { shopCode },
+  });
+  if (!shop) {
+    const error = new Error('Invalid shop code');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  // 2. Look up the user within that shop
+  const user = await mainPrisma.user.findUnique({
+    where: {
+      username_shopId: { username, shopId: shop.id },
+    },
+  });
+  if (!user) {
+    const error = new Error('Invalid username or password');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  // 3. Verify password
+  const isValid = await bcrypt.compare(password, user.passwordHash);
+  if (!isValid) {
+    const error = new Error('Invalid username or password');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  // 4. Generate JWT
+  const token = generateToken({
+    id: user.id,
+    username: user.username,
+    role: user.role,
+    shopId: shop.id,
+    shopCode: shop.shopCode,
+    dbName: shop.dbName,
+  });
+
+  return {
+    user: {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      shopCode: shop.shopCode,
+      shopName: shop.shopName,
+    },
+    token,
+  };
+}
+
+/**
+ * Get list of shops (for the login dropdown).
+ */
+async function getShops() {
+  return mainPrisma.shop.findMany({
+    select: { id: true, shopCode: true, shopName: true },
+    orderBy: { shopName: 'asc' },
+  });
+}
+
+/**
+ * Admin-only: create a new user for the admin's own shop.
+ */
+async function createUser({ username, password, role, shopId }) {
+  // Check for duplicate username within the same shop
+  const existing = await mainPrisma.user.findUnique({
+    where: { username_shopId: { username, shopId } },
+  });
   if (existing) {
-    const error = new Error('Email already registered');
+    const error = new Error('Username already exists in this shop');
     error.statusCode = 409;
     throw error;
   }
 
-  const hashedPassword = await bcrypt.hash(password, 12);
-  const user = await prisma.user.create({
-    data: { email, password: hashedPassword, name },
-    select: { id: true, email: true, name: true, role: true, createdAt: true },
+  const passwordHash = await bcrypt.hash(password, 12);
+  const user = await mainPrisma.user.create({
+    data: { username, passwordHash, role: role || 'STAFF', shopId },
+    select: { id: true, username: true, role: true, shopId: true, createdAt: true },
   });
 
-  const token = generateToken(user);
-  return { user, token };
+  return user;
 }
 
-async function login({ email, password }) {
-  const user = await prisma.user.findUnique({ where: { email } });
+/**
+ * Admin-only: list users in a given shop.
+ */
+async function getUsersByShop(shopId) {
+  return mainPrisma.user.findMany({
+    where: { shopId },
+    select: { id: true, username: true, role: true, createdAt: true },
+    orderBy: { username: 'asc' },
+  });
+}
+
+/**
+ * Admin-only: delete a user (cannot delete yourself).
+ */
+async function deleteUser(userId, requestingUserId) {
+  if (userId === requestingUserId) {
+    const error = new Error('Cannot delete your own account');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const user = await mainPrisma.user.findUnique({ where: { id: userId } });
   if (!user) {
-    const error = new Error('Invalid email or password');
-    error.statusCode = 401;
+    const error = new Error('User not found');
+    error.statusCode = 404;
     throw error;
   }
 
-  const isValid = await bcrypt.compare(password, user.password);
-  if (!isValid) {
-    const error = new Error('Invalid email or password');
-    error.statusCode = 401;
-    throw error;
-  }
-
-  const token = generateToken(user);
-  const { password: _, ...userWithoutPassword } = user;
-  return { user: userWithoutPassword, token };
+  await mainPrisma.user.delete({ where: { id: userId } });
+  return { message: 'User deleted successfully' };
 }
 
-function generateToken(user) {
-  return jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
-    config.jwt.secret,
-    { expiresIn: config.jwt.expiresIn }
-  );
+function generateToken(payload) {
+  return jwt.sign(payload, config.jwt.secret, {
+    expiresIn: config.jwt.expiresIn,
+  });
 }
 
-module.exports = { register, login };
+module.exports = { login, getShops, createUser, getUsersByShop, deleteUser };

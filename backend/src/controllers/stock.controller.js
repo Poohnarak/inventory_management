@@ -4,7 +4,7 @@ const { success, created, paginated } = require('../utils/response');
 async function getMovements(req, res, next) {
   try {
     const { type, ingredientId, startDate, endDate, search, page = 1, limit = 50 } = req.query;
-    const result = await stockService.getMovements({
+    const result = await stockService.getMovements(req.shopPrisma, {
       type,
       ingredientId: ingredientId ? parseInt(ingredientId, 10) : undefined,
       startDate,
@@ -21,7 +21,7 @@ async function getMovements(req, res, next) {
 
 async function createAdjustment(req, res, next) {
   try {
-    const movement = await stockService.createManualAdjustment(req.body);
+    const movement = await stockService.createManualAdjustment(req.shopPrisma, req.body);
     return created(res, movement);
   } catch (error) {
     next(error);
@@ -30,7 +30,7 @@ async function createAdjustment(req, res, next) {
 
 async function getStats(req, res, next) {
   try {
-    const stats = await stockService.getStats();
+    const stats = await stockService.getStats(req.shopPrisma);
     return success(res, stats);
   } catch (error) {
     next(error);
