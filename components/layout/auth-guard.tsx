@@ -1,19 +1,39 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (isLoading) return;
+
+    // Not authenticated -> login
+    if (!user) {
       router.replace("/login");
+      return;
     }
-  }, [isLoading, user, router]);
+
+    const isSuperAdmin = user.role === "SUPER_ADMIN";
+    const isAdminRoute = pathname.startsWith("/admin");
+
+    // SUPER_ADMIN visiting a shop page -> redirect to /admin
+    if (isSuperAdmin && !isAdminRoute) {
+      router.replace("/admin");
+      return;
+    }
+
+    // Shop user visiting an admin page -> redirect to /
+    if (!isSuperAdmin && isAdminRoute) {
+      router.replace("/");
+      return;
+    }
+  }, [isLoading, user, router, pathname]);
 
   if (isLoading) {
     return (

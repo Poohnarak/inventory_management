@@ -14,6 +14,9 @@ import {
   Users,
   LogOut,
   Store,
+  Building2,
+  BarChart3,
+  ShieldCheck,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -37,9 +40,16 @@ const adminNavItems = [
   { href: "/users", label: "User Management", icon: Users },
 ]
 
+const superAdminNavItems = [
+  { href: "/admin", label: "Overview", icon: BarChart3 },
+  { href: "/admin/shops", label: "Shop Management", icon: Building2 },
+]
+
 export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
   const pathname = usePathname()
   const { user, logout } = useAuth()
+  const isSuperAdmin = user?.role === "SUPER_ADMIN"
+  const displayItems = isSuperAdmin ? superAdminNavItems : navItems
 
   if (!isOpen) return null
 
@@ -63,7 +73,7 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
 
         <div className="flex h-[calc(100%-3.5rem)] flex-col">
           <nav className="flex-1 space-y-1 p-3">
-            {navItems.map((item) => {
+            {displayItems.map((item) => {
               const isActive = pathname === item.href
               return (
                 <Link
@@ -83,7 +93,7 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
               )
             })}
 
-            {user?.role === "ADMIN" && (
+            {!isSuperAdmin && user?.role === "ADMIN" && (
               <>
                 <div className="my-2 border-t border-border" />
                 {adminNavItems.map((item) => {
@@ -112,10 +122,19 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
           {user && (
             <div className="border-t border-border p-3">
               <div className="flex items-center gap-2 px-3 py-2 text-sm">
-                <Store className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">{user.shopName}</span>
-                <Badge variant="secondary" className="ml-auto text-xs">
-                  {user.role}
+                {isSuperAdmin ? (
+                  <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <Store className="h-4 w-4 text-muted-foreground" />
+                )}
+                <span className="text-muted-foreground">
+                  {isSuperAdmin ? "Platform Admin" : user.shopName}
+                </span>
+                <Badge
+                  variant={isSuperAdmin ? "default" : "secondary"}
+                  className="ml-auto text-xs"
+                >
+                  {isSuperAdmin ? "SUPER ADMIN" : user.role}
                 </Badge>
               </div>
               <button

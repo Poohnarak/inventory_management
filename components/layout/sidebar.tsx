@@ -37,9 +37,17 @@ const adminNavItems = [
   { href: "/users", label: "User Management", icon: Users },
 ]
 
+const superAdminNavItems = [
+  { href: "/admin", label: "Overview", icon: BarChart3 },
+  { href: "/admin/shops", label: "Shop Management", icon: Building2 },
+]
+
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname()
   const { user } = useAuth()
+
+  const isSuperAdmin = user?.role === "SUPER_ADMIN"
+  const displayItems = isSuperAdmin ? superAdminNavItems : navItems
 
   return (
     <aside
@@ -50,7 +58,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     >
       <div className="flex h-full flex-col">
         <nav className="flex-1 space-y-1 p-3">
-          {navItems.map((item) => {
+          {displayItems.map((item) => {
             const isActive = pathname === item.href
             return (
               <Link
@@ -69,7 +77,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             )
           })}
 
-          {user?.role === "ADMIN" && (
+          {!isSuperAdmin && user?.role === "ADMIN" && (
             <>
               {!isCollapsed && <div className="my-2 border-t border-border" />}
               {adminNavItems.map((item) => {
