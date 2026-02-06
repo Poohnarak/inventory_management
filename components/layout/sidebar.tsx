@@ -12,8 +12,12 @@ import {
   ScanLine,
   ChevronLeft,
   ChevronRight,
+  Users,
+  Building2,
+  BarChart3,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/lib/auth-context"
 
 interface SidebarProps {
   isCollapsed: boolean
@@ -29,8 +33,21 @@ const navItems = [
   { href: "/scan-receipt", label: "Scan Receipt", icon: ScanLine },
 ]
 
+const adminNavItems = [
+  { href: "/users", label: "User Management", icon: Users },
+]
+
+const superAdminNavItems = [
+  { href: "/admin", label: "Overview", icon: BarChart3 },
+  { href: "/admin/shops", label: "Shop Management", icon: Building2 },
+]
+
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname()
+  const { user } = useAuth()
+
+  const isSuperAdmin = user?.role === "SUPER_ADMIN"
+  const displayItems = isSuperAdmin ? superAdminNavItems : navItems
 
   return (
     <aside
@@ -41,7 +58,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     >
       <div className="flex h-full flex-col">
         <nav className="flex-1 space-y-1 p-3">
-          {navItems.map((item) => {
+          {displayItems.map((item) => {
             const isActive = pathname === item.href
             return (
               <Link
@@ -59,6 +76,30 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               </Link>
             )
           })}
+
+          {!isSuperAdmin && user?.role === "ADMIN" && (
+            <>
+              {!isCollapsed && <div className="my-2 border-t border-border" />}
+              {adminNavItems.map((item) => {
+                const isActive = pathname === item.href
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    )}
+                  >
+                    <item.icon className="h-5 w-5 shrink-0" />
+                    {!isCollapsed && <span>{item.label}</span>}
+                  </Link>
+                )
+              })}
+            </>
+          )}
         </nav>
 
         <div className="border-t border-border p-3">

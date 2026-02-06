@@ -11,8 +11,16 @@ import {
   Upload,
   ScanLine,
   X,
+  Users,
+  LogOut,
+  Store,
+  Building2,
+  BarChart3,
+  ShieldCheck,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { useAuth } from "@/lib/auth-context"
 
 interface MobileSidebarProps {
   isOpen: boolean
@@ -28,8 +36,20 @@ const navItems = [
   { href: "/scan-receipt", label: "Scan Receipt", icon: ScanLine },
 ]
 
+const adminNavItems = [
+  { href: "/users", label: "User Management", icon: Users },
+]
+
+const superAdminNavItems = [
+  { href: "/admin", label: "Overview", icon: BarChart3 },
+  { href: "/admin/shops", label: "Shop Management", icon: Building2 },
+]
+
 export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
   const pathname = usePathname()
+  const { user, logout } = useAuth()
+  const isSuperAdmin = user?.role === "SUPER_ADMIN"
+  const displayItems = isSuperAdmin ? superAdminNavItems : navItems
 
   if (!isOpen) return null
 
@@ -51,27 +71,85 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
           </Button>
         </div>
 
-        <nav className="space-y-1 p-3">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onClose}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        <div className="flex h-[calc(100%-3.5rem)] flex-col">
+          <nav className="flex-1 space-y-1 p-3">
+            {displayItems.map((item) => {
+              const isActive = pathname === item.href
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onClose}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  )}
+                >
+                  <item.icon className="h-5 w-5 shrink-0" />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
+
+            {!isSuperAdmin && user?.role === "ADMIN" && (
+              <>
+                <div className="my-2 border-t border-border" />
+                {adminNavItems.map((item) => {
+                  const isActive = pathname === item.href
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={onClose}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      )}
+                    >
+                      <item.icon className="h-5 w-5 shrink-0" />
+                      <span>{item.label}</span>
+                    </Link>
+                  )
+                })}
+              </>
+            )}
+          </nav>
+
+          {user && (
+            <div className="border-t border-border p-3">
+              <div className="flex items-center gap-2 px-3 py-2 text-sm">
+                {isSuperAdmin ? (
+                  <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <Store className="h-4 w-4 text-muted-foreground" />
                 )}
+                <span className="text-muted-foreground">
+                  {isSuperAdmin ? "Platform Admin" : user.shopName}
+                </span>
+                <Badge
+                  variant={isSuperAdmin ? "default" : "secondary"}
+                  className="ml-auto text-xs"
+                >
+                  {isSuperAdmin ? "SUPER ADMIN" : user.role}
+                </Badge>
+              </div>
+              <button
+                onClick={() => {
+                  onClose()
+                  logout()
+                }}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               >
-                <item.icon className="h-5 w-5 shrink-0" />
-                <span>{item.label}</span>
-              </Link>
-            )
-          })}
-        </nav>
+                <LogOut className="h-5 w-5 shrink-0" />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          )}
+        </div>
       </aside>
     </>
   )

@@ -1,0 +1,126 @@
+// Per-shop application database schema: inventory, products, BOM, stock, purchases, sales.
+// One database per shop, holding all business data.
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/@prisma/client/shop_app"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("SHOP_APP_DATABASE_URL")
+}
+
+model Ingredient {
+  id                Int      @id @default(autoincrement())
+  name              String
+  category          String?
+  unit              String
+  costPerUnit       Float    @map("cost_per_unit")
+  currentStock      Float    @default(0) @map("current_stock")
+  lowStockThreshold Float    @default(10) @map("low_stock_threshold")
+  supplier          String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  bomItems       BomItem[]
+  stockMovements StockMovement[]
+  purchaseItems  PurchaseItem[]
+
+  @@map("ingredients")
+}
+
+model Product {
+  id           Int      @id @default(autoincrement())
+  name         String
+  sellingPrice Float    @map("selling_price")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  bomItems     BomItem[]
+  salesRecords SalesRecord[]
+
+  @@map("products")
+}
+
+model BomItem {
+  id           Int @id @default(autoincrement())
+  productId    Int @map("product_id")
+  ingredientId Int @map("ingredient_id")
+  quantity     Float
+
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, ingredientId])
+  @@map("bom_items")
+}
+
+model StockMovement {
+  id             Int      @id @default(autoincrement())
+  ingredientId   Int      @map("ingredient_id")
+  type           String   // Purchase, Sale, Adjustment
+  quantityChange Float    @map("quantity_change")
+  note           String?
+  referenceId    String?  @map("reference_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@map("stock_movements")
+}
+
+model Purchase {
+  id          Int      @id @default(autoincrement())
+  date        DateTime @default(now())
+  totalAmount Float    @map("total_amount")
+  imageUrl    String?  @map("image_url")
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  items PurchaseItem[]
+
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id           Int    @id @default(autoincrement())
+  purchaseId   Int    @map("purchase_id")
+  ingredientId Int    @map("ingredient_id")
+  rawItemName  String @map("raw_item_name")
+  quantity     Float
+  price        Float
+
+  purchase   Purchase   @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@map("purchase_items")
+}
+
+model SalesImport {
+  id        Int      @id @default(autoincrement())
+  fileName  String   @map("file_name")
+  source    String?  // Grab, LINE MAN, Manual
+  totalRows Int      @map("total_rows")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  records SalesRecord[]
+
+  @@map("sales_imports")
+}
+
+model SalesRecord {
+  id            Int      @id @default(autoincrement())
+  salesImportId Int      @map("sales_import_id")
+  productId     Int      @map("product_id")
+  productName   String   @map("product_name")
+  quantity      Int
+  date          DateTime
+  revenue       Float    @default(0)
+  costOfGoods   Float    @default(0) @map("cost_of_goods")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  salesImport SalesImport @relation(fields: [salesImportId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id])
+
+  @@map("sales_records")
+}

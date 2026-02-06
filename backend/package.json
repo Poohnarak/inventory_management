@@ -1,0 +1,42 @@
+{
+  "name": "inventory-management-backend",
+  "version": "2.0.0",
+  "description": "Multi-tenant backend API for restaurant/shop inventory management system",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "prisma:generate": "npm run prisma:generate:system && npm run prisma:generate:shop-user && npm run prisma:generate:shop-app",
+    "prisma:generate:system": "npx prisma generate --schema=prisma/system/schema.prisma",
+    "prisma:generate:shop-user": "npx prisma generate --schema=prisma/shop_user/schema.prisma",
+    "prisma:generate:shop-app": "npx prisma generate --schema=prisma/shop_app/schema.prisma",
+    "prisma:migrate:system": "npx prisma migrate dev --schema=prisma/system/schema.prisma",
+    "prisma:migrate:shop-user": "SHOP_USER_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/shop_demo_users?schema=public npx prisma migrate dev --schema=prisma/shop_user/schema.prisma",
+    "prisma:migrate:shop-app": "SHOP_APP_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/shop_demo_app?schema=public npx prisma migrate dev --schema=prisma/shop_app/schema.prisma",
+    "prisma:migrate:deploy:system": "npx prisma migrate deploy --schema=prisma/system/schema.prisma",
+    "prisma:migrate:deploy:shop-user": "npx prisma migrate deploy --schema=prisma/shop_user/schema.prisma",
+    "prisma:migrate:deploy:shop-app": "npx prisma migrate deploy --schema=prisma/shop_app/schema.prisma",
+    "prisma:studio:system": "npx prisma studio --schema=prisma/system/schema.prisma",
+    "prisma:studio:shop-user": "SHOP_USER_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/shop_demo_users?schema=public npx prisma studio --schema=prisma/shop_user/schema.prisma",
+    "prisma:studio:shop-app": "SHOP_APP_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/shop_demo_app?schema=public npx prisma studio --schema=prisma/shop_app/schema.prisma",
+    "seed": "node prisma/seed.js",
+    "shop:provision": "node scripts/provision-shop.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.3.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "csv-parse": "^5.5.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-validator": "^7.2.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "morgan": "^1.10.0",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9",
+    "prisma": "^6.3.0"
+  }
+}
