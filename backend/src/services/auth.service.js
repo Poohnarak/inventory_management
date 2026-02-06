@@ -1,15 +1,69 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { mainPrisma } = require('../config/db');
+const { systemPrisma, getShopUserPrisma } = require('../config/db');
 const config = require('../config/env');
 
 /**
- * Login with shop_code + username + password.
- * Returns a JWT that embeds shop_code, db_name, role, and user id.
+ * Login flow:
+ * - If shopCode is provided → shop user login (ADMIN/STAFF)
+ * - If shopCode is absent/empty → super admin login
  */
 async function login({ shopCode, username, password }) {
-  // 1. Look up the shop
-  const shop = await mainPrisma.shop.findUnique({
+  if (!shopCode) {
+    return loginSuperAdmin({ username, password });
+  }
+  return loginShopUser({ shopCode, username, password });
+}
+
+/**
+ * Super admin login: authenticate against the system database.
+ */
+async function loginSuperAdmin({ username, password }) {
+  const user = await systemPrisma.systemUser.findUnique({
+    where: { username },
+  });
+  if (!user) {
+    const error = new Error('Invalid username or password');
+    error.statusCode = 401;
+    throw error;
+  }
+  if (!user.isActive) {
+    const error = new Error('Account is disabled');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const isValid = await bcrypt.compare(password, user.passwordHash);
+  if (!isValid) {
+    const error = new Error('Invalid username or password');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const token = generateToken({
+    id: user.id,
+    username: user.username,
+    role: 'SUPER_ADMIN',
+  });
+
+  return {
+    user: {
+      id: user.id,
+      username: user.username,
+      role: 'SUPER_ADMIN',
+      shopCode: null,
+      shopName: 'Platform Admin',
+    },
+    token,
+  };
+}
+
+/**
+ * Shop user login: look up the shop, then authenticate against the shop's user database.
+ */
+async function loginShopUser({ shopCode, username, password }) {
+  // 1. Look up the shop in the system database
+  const shop = await systemPrisma.shop.findUnique({
     where: { shopCode },
   });
   if (!shop) {
@@ -17,16 +71,25 @@ async function login({ shopCode, username, password }) {
     error.statusCode = 401;
     throw error;
   }
+  if (!shop.isActive) {
+    const error = new Error('This shop has been disabled. Contact the platform administrator.');
+    error.statusCode = 403;
+    throw error;
+  }
 
-  // 2. Look up the user within that shop
-  const user = await mainPrisma.user.findUnique({
-    where: {
-      username_shopId: { username, shopId: shop.id },
-    },
+  // 2. Look up the user in the shop's user database
+  const shopUserPrisma = getShopUserPrisma(shop.userDbName);
+  const user = await shopUserPrisma.shopUser.findUnique({
+    where: { username },
   });
   if (!user) {
     const error = new Error('Invalid username or password');
     error.statusCode = 401;
+    throw error;
+  }
+  if (!user.isActive) {
+    const error = new Error('Account is disabled');
+    error.statusCode = 403;
     throw error;
   }
 
@@ -38,14 +101,15 @@ async function login({ shopCode, username, password }) {
     throw error;
   }
 
-  // 4. Generate JWT
+  // 4. Generate JWT with both db names
   const token = generateToken({
     id: user.id,
     username: user.username,
     role: user.role,
-    shopId: shop.id,
     shopCode: shop.shopCode,
-    dbName: shop.dbName,
+    shopId: shop.id,
+    userDb: shop.userDbName,
+    appDb: shop.appDbName,
   });
 
   return {
@@ -61,22 +125,24 @@ async function login({ shopCode, username, password }) {
 }
 
 /**
- * Get list of shops (for the login dropdown).
+ * Get list of active shops (for the login dropdown).
  */
 async function getShops() {
-  return mainPrisma.shop.findMany({
+  return systemPrisma.shop.findMany({
+    where: { isActive: true },
     select: { id: true, shopCode: true, shopName: true },
     orderBy: { shopName: 'asc' },
   });
 }
 
 /**
- * Admin-only: create a new user for the admin's own shop.
+ * Admin-only: create a new user in the shop's user database.
  */
-async function createUser({ username, password, role, shopId }) {
-  // Check for duplicate username within the same shop
-  const existing = await mainPrisma.user.findUnique({
-    where: { username_shopId: { username, shopId } },
+async function createUser({ username, password, role, userDbName }) {
+  const shopUserPrisma = getShopUserPrisma(userDbName);
+
+  const existing = await shopUserPrisma.shopUser.findUnique({
+    where: { username },
   });
   if (existing) {
     const error = new Error('Username already exists in this shop');
@@ -85,43 +151,44 @@ async function createUser({ username, password, role, shopId }) {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const user = await mainPrisma.user.create({
-    data: { username, passwordHash, role: role || 'STAFF', shopId },
-    select: { id: true, username: true, role: true, shopId: true, createdAt: true },
+  const user = await shopUserPrisma.shopUser.create({
+    data: { username, passwordHash, role: role || 'STAFF' },
+    select: { id: true, username: true, role: true, isActive: true, createdAt: true },
   });
 
   return user;
 }
 
 /**
- * Admin-only: list users in a given shop.
+ * Admin-only: list users in the shop's user database.
  */
-async function getUsersByShop(shopId) {
-  return mainPrisma.user.findMany({
-    where: { shopId },
-    select: { id: true, username: true, role: true, createdAt: true },
+async function getUsersByShop(userDbName) {
+  const shopUserPrisma = getShopUserPrisma(userDbName);
+  return shopUserPrisma.shopUser.findMany({
+    select: { id: true, username: true, role: true, isActive: true, createdAt: true },
     orderBy: { username: 'asc' },
   });
 }
 
 /**
- * Admin-only: delete a user (cannot delete yourself).
+ * Admin-only: delete a user from the shop's user database (cannot delete yourself).
  */
-async function deleteUser(userId, requestingUserId) {
+async function deleteUser(userId, requestingUserId, userDbName) {
   if (userId === requestingUserId) {
     const error = new Error('Cannot delete your own account');
     error.statusCode = 400;
     throw error;
   }
 
-  const user = await mainPrisma.user.findUnique({ where: { id: userId } });
+  const shopUserPrisma = getShopUserPrisma(userDbName);
+  const user = await shopUserPrisma.shopUser.findUnique({ where: { id: userId } });
   if (!user) {
     const error = new Error('User not found');
     error.statusCode = 404;
     throw error;
   }
 
-  await mainPrisma.user.delete({ where: { id: userId } });
+  await shopUserPrisma.shopUser.delete({ where: { id: userId } });
   return { message: 'User deleted successfully' };
 }
 

@@ -4,10 +4,10 @@ module.exports = {
   port: parseInt(process.env.PORT, 10) || 4000,
   nodeEnv: process.env.NODE_ENV || 'development',
 
-  // Main database (shops + users)
-  mainDatabaseUrl:
-    process.env.MAIN_DATABASE_URL ||
-    'postgresql://postgres:postgres@localhost:5432/inventory_main?schema=public',
+  // System database (super admins + shop registry)
+  systemDatabaseUrl:
+    process.env.SYSTEM_DATABASE_URL ||
+    'postgresql://postgres:postgres@localhost:5432/inventory_system?schema=public',
 
   // Base URL used to build per-shop connection strings.
   // The database name is appended at runtime: <base>/<db_name>?schema=public

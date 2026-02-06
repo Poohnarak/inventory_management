@@ -23,17 +23,16 @@ async function getShops(req, res, next) {
   }
 }
 
-// --- User management (ADMIN only) ---
+// --- User management (ADMIN only, uses shop user DB) ---
 
 async function createUser(req, res, next) {
   try {
     const { username, password, role } = req.body;
-    // Admin can only create users for their own shop
     const user = await authService.createUser({
       username,
       password,
       role,
-      shopId: req.user.shopId,
+      userDbName: req.user.userDb,
     });
     return created(res, user);
   } catch (error) {
@@ -43,7 +42,7 @@ async function createUser(req, res, next) {
 
 async function getUsers(req, res, next) {
   try {
-    const users = await authService.getUsersByShop(req.user.shopId);
+    const users = await authService.getUsersByShop(req.user.userDb);
     return success(res, users);
   } catch (error) {
     next(error);
@@ -54,7 +53,8 @@ async function deleteUser(req, res, next) {
   try {
     const result = await authService.deleteUser(
       parseInt(req.params.id, 10),
-      req.user.id
+      req.user.id,
+      req.user.userDb
     );
     return success(res, result);
   } catch (error) {

@@ -12,9 +12,9 @@ import { apiFetch } from "./api";
 export interface AuthUser {
   id: number;
   username: string;
-  role: "ADMIN" | "STAFF";
-  shopCode: string;
-  shopName: string;
+  role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
+  shopCode?: string;
+  shopName?: string;
 }
 
 interface AuthState {
@@ -25,11 +25,12 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (
-    shopCode: string,
     username: string,
-    password: string
+    password: string,
+    shopCode?: string
   ) => Promise<void>;
   logout: () => void;
+  isSuperAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -64,13 +65,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (shopCode: string, username: string, password: string) => {
+    async (username: string, password: string, shopCode?: string) => {
+      const body: Record<string, string> = { username, password };
+      if (shopCode) body.shopCode = shopCode;
+
       const res = await apiFetch<{
         success: boolean;
         data: { user: AuthUser; token: string };
       }>("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ shopCode, username, password }),
+        body: JSON.stringify(body),
       });
 
       const { user, token } = res.data;
@@ -87,8 +91,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ user: null, token: null, isLoading: false });
   }, []);
 
+  const isSuperAdmin = state.user?.role === "SUPER_ADMIN";
+
   return (
-    <AuthContext.Provider value={{ ...state, login, logout }}>
+    <AuthContext.Provider value={{ ...state, login, logout, isSuperAdmin }}>
       {children}
     </AuthContext.Provider>
   );

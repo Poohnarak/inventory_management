@@ -1,0 +1,36 @@
+// System database schema: platform-level super admins and shop registry.
+// This is the central "control plane" database.
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/@prisma/client/system"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("SYSTEM_DATABASE_URL")
+}
+
+model SystemUser {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  role         String   @default("SUPER_ADMIN") // Only SUPER_ADMIN for now
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("system_users")
+}
+
+model Shop {
+  id         Int      @id @default(autoincrement())
+  shopCode   String   @unique @map("shop_code")
+  shopName   String   @map("shop_name")
+  userDbName String   @unique @map("user_db_name")
+  appDbName  String   @unique @map("app_db_name")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("shops")
+}

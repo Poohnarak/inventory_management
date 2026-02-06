@@ -9,11 +9,11 @@ const router = Router();
 // Public: list shops for login dropdown
 router.get('/shops', authController.getShops);
 
-// Public: login
+// Public: login (shopCode is optional -- omit it for SUPER_ADMIN login)
 router.post(
   '/login',
   [
-    body('shopCode').notEmpty().withMessage('Shop code is required'),
+    body('shopCode').optional({ values: 'falsy' }),
     body('username').notEmpty().withMessage('Username is required'),
     body('password').notEmpty().withMessage('Password is required'),
   ],

@@ -1,6 +1,6 @@
 "use client"
 
-import { Menu, Package2, LogOut, Store, User } from "lucide-react"
+import { Menu, Package2, LogOut, Store, User, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/lib/auth-context"
@@ -33,14 +33,23 @@ export function Header({ onMenuClick }: HeaderProps) {
         {user && (
           <>
             <div className="hidden sm:flex items-center gap-2 text-sm">
-              <Store className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">{user.shopName}</span>
+              {user.role === "SUPER_ADMIN" ? (
+                <>
+                  <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Platform Admin</span>
+                </>
+              ) : (
+                <>
+                  <Store className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">{user.shopName}</span>
+                </>
+              )}
             </div>
             <div className="hidden sm:flex items-center gap-2 text-sm">
               <User className="h-4 w-4 text-muted-foreground" />
               <span className="font-medium text-foreground">{user.username}</span>
-              <Badge variant="secondary" className="text-xs">
-                {user.role}
+              <Badge variant={user.role === "SUPER_ADMIN" ? "default" : "secondary"} className="text-xs">
+                {user.role === "SUPER_ADMIN" ? "SUPER ADMIN" : user.role}
               </Badge>
             </div>
             <Button

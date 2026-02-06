@@ -1,76 +1,98 @@
 /**
- * Multi-tenant seed script.
+ * Multi-tenant seed script (3-tier architecture).
  *
- * 1. Seeds the MAIN database with a demo shop + admin/staff users.
- * 2. Seeds the SHOP database (shop_demo) with ingredients, products, BOM, and stock movements.
+ * 1. Seeds the SYSTEM database with a super admin + a demo shop record.
+ * 2. Seeds the SHOP USER database (shop_demo_users) with admin/staff users.
+ * 3. Seeds the SHOP APP database (shop_demo_app) with ingredients, products, BOM, and stock movements.
  *
  * Prerequisites:
- *   - PostgreSQL is running with both `inventory_main` and `shop_demo` databases created.
- *   - Prisma migrations have been applied to both databases.
- *   - Run `npm run prisma:generate` first to generate both clients.
+ *   - PostgreSQL is running with `inventory_system`, `shop_demo_users`, and `shop_demo_app` databases created.
+ *   - Prisma migrations have been applied to all three databases.
+ *   - Run `npm run prisma:generate` first to generate all three clients.
  */
 
-const { PrismaClient: MainPrismaClient } = require('@prisma/client/main');
-const { PrismaClient: ShopPrismaClient } = require('@prisma/client/shop');
+const { PrismaClient: SystemPrismaClient } = require('@prisma/client/system');
+const { PrismaClient: ShopUserPrismaClient } = require('@prisma/client/shop_user');
+const { PrismaClient: ShopAppPrismaClient } = require('@prisma/client/shop_app');
 const bcrypt = require('bcryptjs');
 
-const mainPrisma = new MainPrismaClient({
+const systemPrisma = new SystemPrismaClient({
   datasourceUrl:
-    process.env.MAIN_DATABASE_URL ||
-    'postgresql://postgres:postgres@localhost:5432/inventory_main?schema=public',
+    process.env.SYSTEM_DATABASE_URL ||
+    'postgresql://postgres:postgres@localhost:5432/inventory_system?schema=public',
 });
 
-const shopPrisma = new ShopPrismaClient({
+const shopUserPrisma = new ShopUserPrismaClient({
   datasourceUrl:
-    process.env.SHOP_DATABASE_URL ||
-    'postgresql://postgres:postgres@localhost:5432/shop_demo?schema=public',
+    process.env.SHOP_USER_DATABASE_URL ||
+    'postgresql://postgres:postgres@localhost:5432/shop_demo_users?schema=public',
+});
+
+const shopAppPrisma = new ShopAppPrismaClient({
+  datasourceUrl:
+    process.env.SHOP_APP_DATABASE_URL ||
+    'postgresql://postgres:postgres@localhost:5432/shop_demo_app?schema=public',
 });
 
 async function main() {
-  console.log('Seeding multi-tenant database...\n');
+  console.log('Seeding 3-tier multi-tenant database...\n');
 
-  // ─── 1. Main database: shops + users ────────────────────────────────
-  console.log('--- Main database ---');
+  // ─── 1. System database: super admin + shop registry ────────────────
+  console.log('--- System database ---');
 
-  const shop = await mainPrisma.shop.upsert({
+  const superAdminHash = await bcrypt.hash('super123', 12);
+  const superAdmin = await systemPrisma.systemUser.upsert({
+    where: { username: 'superadmin' },
+    update: {},
+    create: {
+      username: 'superadmin',
+      passwordHash: superAdminHash,
+      role: 'SUPER_ADMIN',
+    },
+  });
+  console.log(`System user: ${superAdmin.username} (role: ${superAdmin.role})`);
+
+  const shop = await systemPrisma.shop.upsert({
     where: { shopCode: 'DEMO' },
     update: {},
     create: {
       shopCode: 'DEMO',
       shopName: 'Demo Bakery',
-      dbName: 'shop_demo',
+      userDbName: 'shop_demo_users',
+      appDbName: 'shop_demo_app',
     },
   });
-  console.log(`Shop: ${shop.shopName} (code: ${shop.shopCode}, db: ${shop.dbName})`);
+  console.log(`Shop: ${shop.shopName} (code: ${shop.shopCode}, userDb: ${shop.userDbName}, appDb: ${shop.appDbName})`);
+
+  // ─── 2. Shop user database: admin + staff ───────────────────────────
+  console.log('\n--- Shop user database (shop_demo_users) ---');
 
   const adminHash = await bcrypt.hash('admin123', 12);
-  const admin = await mainPrisma.user.upsert({
-    where: { username_shopId: { username: 'admin', shopId: shop.id } },
+  const admin = await shopUserPrisma.shopUser.upsert({
+    where: { username: 'admin' },
     update: {},
     create: {
       username: 'admin',
       passwordHash: adminHash,
       role: 'ADMIN',
-      shopId: shop.id,
     },
   });
-  console.log(`User: ${admin.username} (role: ${admin.role})`);
+  console.log(`Shop user: ${admin.username} (role: ${admin.role})`);
 
   const staffHash = await bcrypt.hash('staff123', 12);
-  const staff = await mainPrisma.user.upsert({
-    where: { username_shopId: { username: 'staff', shopId: shop.id } },
+  const staff = await shopUserPrisma.shopUser.upsert({
+    where: { username: 'staff' },
     update: {},
     create: {
       username: 'staff',
       passwordHash: staffHash,
       role: 'STAFF',
-      shopId: shop.id,
     },
   });
-  console.log(`User: ${staff.username} (role: ${staff.role})`);
+  console.log(`Shop user: ${staff.username} (role: ${staff.role})`);
 
-  // ─── 2. Shop database: inventory data ───────────────────────────────
-  console.log('\n--- Shop database (shop_demo) ---');
+  // ─── 3. Shop app database: inventory data ──────────────────────────
+  console.log('\n--- Shop app database (shop_demo_app) ---');
 
   const ingredientsData = [
     { name: 'Flour', category: 'Dry Goods', unit: 'kg', costPerUnit: 2.5, currentStock: 50, lowStockThreshold: 10, supplier: 'Bangkok Flour Co.' },
@@ -87,7 +109,7 @@ async function main() {
 
   const ingredients = [];
   for (const [index, data] of ingredientsData.entries()) {
-    const ing = await shopPrisma.ingredient.upsert({
+    const ing = await shopAppPrisma.ingredient.upsert({
       where: { id: index + 1 },
       update: data,
       create: data,
@@ -153,7 +175,7 @@ async function main() {
   ];
 
   for (const pData of productsData) {
-    const product = await shopPrisma.product.create({
+    const product = await shopAppPrisma.product.create({
       data: {
         name: pData.name,
         sellingPrice: pData.sellingPrice,
@@ -179,15 +201,16 @@ async function main() {
   ];
 
   for (const m of movements) {
-    await shopPrisma.stockMovement.create({ data: m });
+    await shopAppPrisma.stockMovement.create({ data: m });
   }
   console.log(`Seeded ${movements.length} stock movements`);
 
   console.log('\nSeeding complete!');
   console.log('\nYou can now log in with:');
-  console.log('  Shop code: DEMO');
-  console.log('  Admin:  admin / admin123');
-  console.log('  Staff:  staff / staff123');
+  console.log('  Super Admin: superadmin / super123  (no shop code)');
+  console.log('  Shop code:   DEMO');
+  console.log('  Admin:       admin / admin123');
+  console.log('  Staff:       staff / staff123');
 }
 
 main()
@@ -196,6 +219,7 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await mainPrisma.$disconnect();
-    await shopPrisma.$disconnect();
+    await systemPrisma.$disconnect();
+    await shopUserPrisma.$disconnect();
+    await shopAppPrisma.$disconnect();
   });

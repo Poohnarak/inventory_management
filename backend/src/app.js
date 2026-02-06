@@ -6,6 +6,7 @@ const config = require('./config/env');
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
+const superadminRoutes = require('./routes/superadmin.routes');
 const ingredientRoutes = require('./routes/ingredient.routes');
 const productRoutes = require('./routes/product.routes');
 const stockRoutes = require('./routes/stock.routes');
@@ -34,6 +35,7 @@ app.get('/api/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/superadmin', superadminRoutes);
 app.use('/api/ingredients', ingredientRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/stock', stockRoutes);

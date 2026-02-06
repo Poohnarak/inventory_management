@@ -1,11 +1,11 @@
 const app = require('./app');
 const config = require('./config/env');
-const { mainPrisma, disconnectAll } = require('./config/db');
+const { systemPrisma, disconnectAll } = require('./config/db');
 
 async function main() {
   try {
-    await mainPrisma.$connect();
-    console.log('Main database connected successfully');
+    await systemPrisma.$connect();
+    console.log('System database connected successfully');
 
     app.listen(config.port, () => {
       console.log(`Server running on http://localhost:${config.port}`);

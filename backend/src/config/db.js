@@ -1,53 +1,98 @@
-const { PrismaClient: MainPrismaClient } = require('@prisma/client/main');
-const { PrismaClient: ShopPrismaClient } = require('@prisma/client/shop');
+const { PrismaClient: SystemPrismaClient } = require('@prisma/client/system');
+const { PrismaClient: ShopUserPrismaClient } = require('@prisma/client/shop_user');
+const { PrismaClient: ShopAppPrismaClient } = require('@prisma/client/shop_app');
 const config = require('./env');
 
-// ---------- Main database client (singleton) ----------
-const mainPrisma = new MainPrismaClient({
-  datasourceUrl: config.mainDatabaseUrl,
-  log: config.nodeEnv === 'development' ? ['error', 'warn'] : ['error'],
+const logLevel = config.nodeEnv === 'development' ? ['error', 'warn'] : ['error'];
+
+// ---------- System database client (singleton) ----------
+const systemPrisma = new SystemPrismaClient({
+  datasourceUrl: config.systemDatabaseUrl,
+  log: logLevel,
 });
 
 // ---------- Per-shop database clients (cached in-memory) ----------
-const shopClients = new Map();
+const shopUserClients = new Map();
+const shopAppClients = new Map();
 
 /**
- * Build a PostgreSQL connection URL for a shop database.
- * All shop databases live on the same PostgreSQL server, so we replace
- * only the database name portion of the base URL.
+ * Build a PostgreSQL connection URL for a given database name.
+ * All databases live on the same PostgreSQL server.
  */
-function buildShopDatabaseUrl(dbName) {
-  const base = config.shopDatabaseBaseUrl; // e.g. postgresql://user:pass@host:5432
+function buildDatabaseUrl(dbName) {
+  const base = config.shopDatabaseBaseUrl;
   return `${base}/${dbName}?schema=public`;
 }
 
 /**
- * Return a cached PrismaClient connected to the given shop's database.
- * Creates a new client on first access and caches it for subsequent calls.
+ * Return a cached PrismaClient connected to a shop's USER database.
  */
-function getShopPrisma(dbName) {
-  if (shopClients.has(dbName)) {
-    return shopClients.get(dbName);
+function getShopUserPrisma(userDbName) {
+  if (shopUserClients.has(userDbName)) {
+    return shopUserClients.get(userDbName);
   }
 
-  const client = new ShopPrismaClient({
-    datasourceUrl: buildShopDatabaseUrl(dbName),
-    log: config.nodeEnv === 'development' ? ['error', 'warn'] : ['error'],
+  const client = new ShopUserPrismaClient({
+    datasourceUrl: buildDatabaseUrl(userDbName),
+    log: logLevel,
   });
 
-  shopClients.set(dbName, client);
+  shopUserClients.set(userDbName, client);
   return client;
 }
 
 /**
- * Disconnect all cached shop clients (for graceful shutdown).
+ * Return a cached PrismaClient connected to a shop's APP database.
  */
-async function disconnectAll() {
-  await mainPrisma.$disconnect();
-  for (const [, client] of shopClients) {
-    await client.$disconnect();
+function getShopAppPrisma(appDbName) {
+  if (shopAppClients.has(appDbName)) {
+    return shopAppClients.get(appDbName);
   }
-  shopClients.clear();
+
+  const client = new ShopAppPrismaClient({
+    datasourceUrl: buildDatabaseUrl(appDbName),
+    log: logLevel,
+  });
+
+  shopAppClients.set(appDbName, client);
+  return client;
 }
 
-module.exports = { mainPrisma, getShopPrisma, buildShopDatabaseUrl, disconnectAll };
+/**
+ * Remove and disconnect a specific shop's cached clients.
+ * Useful when a shop is deleted or disabled.
+ */
+async function removeShopClients(userDbName, appDbName) {
+  if (shopUserClients.has(userDbName)) {
+    await shopUserClients.get(userDbName).$disconnect();
+    shopUserClients.delete(userDbName);
+  }
+  if (shopAppClients.has(appDbName)) {
+    await shopAppClients.get(appDbName).$disconnect();
+    shopAppClients.delete(appDbName);
+  }
+}
+
+/**
+ * Disconnect all cached clients (for graceful shutdown).
+ */
+async function disconnectAll() {
+  await systemPrisma.$disconnect();
+  for (const [, client] of shopUserClients) {
+    await client.$disconnect();
+  }
+  for (const [, client] of shopAppClients) {
+    await client.$disconnect();
+  }
+  shopUserClients.clear();
+  shopAppClients.clear();
+}
+
+module.exports = {
+  systemPrisma,
+  getShopUserPrisma,
+  getShopAppPrisma,
+  buildDatabaseUrl,
+  removeShopClients,
+  disconnectAll,
+};

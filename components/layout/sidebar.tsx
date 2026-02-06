@@ -13,6 +13,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Users,
+  Building2,
+  BarChart3,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
